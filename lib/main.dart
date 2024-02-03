@@ -1,11 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:blocstatemanagement/bloc/bloc_actions.dart';
-import 'package:blocstatemanagement/bloc/person.dart';
-import 'package:blocstatemanagement/bloc/persons_bloc.dart';
+import 'package:blocstatemanagement/apis/login_api.dart';
+import 'package:blocstatemanagement/bloc/actions.dart';
+import 'package:blocstatemanagement/bloc/app_bloc.dart';
+import 'package:blocstatemanagement/bloc/app_state.dart';
+import 'package:blocstatemanagement/dialogs/generic_dialog.dart';
+import 'package:blocstatemanagement/dialogs/loading_screen.dart';
+import 'package:blocstatemanagement/models.dart';
+import 'package:blocstatemanagement/views/iterable_list_view.dart';
+import 'package:blocstatemanagement/views/login_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:developer' as devtools show log;
+
+import 'apis/notes_api.dart';
 
 extension Log on Object {
   void log() => devtools.log(toString());
@@ -28,21 +36,9 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      home: BlocProvider(create: (_) => PersonsBloc(), child: const HomePage()),
+      home: const HomePage(),
     );
   }
-}
-
-Future<Iterable<Person>> getPerson(String url) => HttpClient()
-    .getUrl(Uri.parse(url))
-    .then((req) => req.close())
-    .then((resp) => resp.transform(utf8.decoder).join())
-    .then((str) => json.decode(str) as List<dynamic>)
-    .then((list) => list.map((e) => Person.fromJson(e)));
-
-
-extension Subscript<T> on Iterable<T> {
-  T? operator [](int index) => length > index ? elementAt(index) : null;
 }
 
 class HomePage extends StatelessWidget {
@@ -50,58 +46,52 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    late final Bloc myBloc;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home Page'),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          Row(
-            children: [
-              TextButton(
-                  onPressed: () {
-                    final foo = context
-                        .read<PersonsBloc>()
-                        .add(const LoadPersonAction(url: person1Url, loader: getPerson));
-                  },
-                  child: Text("Load json #1")),
-              TextButton(
-                  onPressed: () {
-                    final foo = context
-                        .read<PersonsBloc>()
-                        .add(const LoadPersonAction(url: person2Url, loader: getPerson));
-                  },
-                  child: Text("Load json #2")),
-            ],
+    return BlocProvider(
+      create: (context) => AppBloc(loginApi: LoginApi(), notesApi: NotesApi()),
+      child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Home Page'),
+            centerTitle: true,
           ),
-          BlocBuilder<PersonsBloc, FetchResult?>(
-              buildWhen: (previousResult, currentResult) {
-            return previousResult?.persons != currentResult?.persons;
-          }, builder: (context, fetchResult) {
-            fetchResult?.log();
-            final persons = fetchResult?.persons;
-            print(persons);
-            if (persons == null) {
-              return const SizedBox();
-            }
-            return Expanded(
-              child: ListView.builder(
-                  itemCount: persons.length,
-                  itemBuilder: (context, index) {
-                    final person = persons[index]!;
-                    return ListTile(
-                      title: Text(
-                        person.name,
-                      ),
-                    );
-                  }),
-            );
-          })
-        ],
-      ),
+          body: BlocConsumer<AppBloc, AppState>(
+            listener: (context, appState) {
+              if (appState.isLoading) {
+                LoadingScreen.instance()
+                    .show(context: context, text: 'Please wait ....');
+              } else {
+                LoadingScreen.instance().hide();
+              }
+
+              final loginError = appState.loginErrors;
+              if (loginError != null) {
+                showGenericDialog(
+                    context: context,
+                    title: 'Login Error',
+                    content:
+                        'Invalid email/password combination.Please try again with valid login credentials!',
+                    optionBuilder: () => {'OK': true});
+              }
+
+              if (appState.isLoading == false &&
+                  appState.loginErrors == null &&
+                  appState.loginHandle == const LoginHandle.fooBar() &&
+                  appState.fetchedNotes == null) {
+                context.read<AppBloc>().add(const LoadNotesAction());
+              }
+            },
+            builder: (context, appState) {
+              final notes = appState.fetchedNotes;
+              if (notes == null) {
+                return LoginView(onLoginTapped: (email, password) {
+                  context.read<AppBloc>().add(
+                    LoginAction(email: email, password: password)
+                  );
+                });
+              } else {
+                return notes.toListView();
+              }
+            },
+          )),
     );
   }
 }
