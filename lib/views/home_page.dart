@@ -17,20 +17,17 @@ class HomePage extends StatelessWidget {
         child: MultiBlocProvider(
           providers: [
             BlocProvider<TopBloc>(
-                create: (_) =>
-                    TopBloc(
-                        waitBeforeLoading: const Duration(seconds: 3),
-                        urls: images)),
-            BlocProvider<BottomBloc>(create: (_) =>
-                BottomBloc(waitBeforeLoading: const Duration(seconds: 3),
+                create: (_) => TopBloc(
+                    waitBeforeLoading: const Duration(seconds: 3),
+                    urls: images)),
+            BlocProvider<BottomBloc>(
+                create: (_) => BottomBloc(
+                    waitBeforeLoading: const Duration(seconds: 3),
                     urls: images))
           ],
           child: Column(
             mainAxisSize: MainAxisSize.max,
-            children: const [
-              AppBlocView<TopBloc>(),
-              AppBlocView<BottomBloc>()
-            ],
+            children: const [AppBlocView<TopBloc>(), AppBlocView<BottomBloc>()],
           ),
         ),
       ),

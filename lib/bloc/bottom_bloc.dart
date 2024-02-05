@@ -5,5 +5,4 @@ class BottomBloc extends AppBloc{
       waitBeforeLoading: waitBeforeLoading,
       urls: urls
   );
-
 }
